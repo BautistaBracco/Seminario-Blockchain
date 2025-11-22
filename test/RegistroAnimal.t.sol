@@ -55,7 +55,6 @@ contract RegistroAnimalTest is Test {
 
     uint256 public constant CHIP_1 = 123456789;
     uint256 public constant CHIP_2 = 987654321;
-    
 
     function setUp() public {
         vm.startPrank(owner);
