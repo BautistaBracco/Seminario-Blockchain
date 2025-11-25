@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {RegistroAnimal} from "../src/RegistroAnimal.sol";
+import {RegistroIdentidadAnimal} from "../src/RegistroIdentidadAnimal.sol";
 import {Especie, Sexo} from "../src/TiposAnimales.sol";
 
 // Mocks de las interfaces
@@ -43,7 +43,7 @@ contract MockRegistroMedico {
 }
 
 contract RegistroAnimalTest is Test {
-    RegistroAnimal public registro;
+    RegistroIdentidadAnimal public registro;
     MockColegioDeVeterinarios public colegio;
     MockRegistroMedico public registroMedico;
 
@@ -64,7 +64,7 @@ contract RegistroAnimalTest is Test {
         registroMedico = new MockRegistroMedico();
 
         // Deploy contrato principal
-        registro = new RegistroAnimal("https://api.example.com/metadata/", address(colegio), address(registroMedico));
+        registro = new RegistroIdentidadAnimal("https://api.example.com/metadata/", address(colegio), address(registroMedico));
 
         // Configurar veterinario habilitado
         colegio.setVeterinario(veterinario, true);

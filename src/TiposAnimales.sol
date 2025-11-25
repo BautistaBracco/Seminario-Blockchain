@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 enum Sexo {
@@ -41,3 +42,16 @@ struct Animal {
     Sexo sexo;
     // string propositoProductivo;
 }
+
+enum EstadoSalud {
+    SANO,
+    ENFERMO,
+    FALLECIDO
+}
+
+struct RegistroMedico {
+    uint256 fecha;
+    string descripcion;
+    address veterinario;
+}
+

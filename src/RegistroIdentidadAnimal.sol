@@ -2,47 +2,44 @@
 pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Animal, Especie, Sexo} from "./TiposAnimales.sol";
-import {IColegioDeVeterinarios, IRegistroMedico} from "./Interfaces.sol";
+import {CoreAnimal} from "./CoreAnimal.sol";
+import {Animal, Especie, Sexo, EstadoSalud} from "./TiposAnimales.sol";
+import {IRegistroDeVacunacionAnimal, IHistoriaClinicaAnimal} from "./Interfaces.sol";
 
-contract RegistroAnimal is ERC721, Ownable {
+contract RegistroIdentidadAnimal is ERC721, CoreAnimal {
     string private _baseTokenURI;
 
     mapping(uint256 => Animal) public animals;
     mapping(address => bool) public ownerEnabled;
 
-    IColegioDeVeterinarios public colegioDeVeterinarios;
-    IRegistroMedico public registroMedico;
+    IRegistroDeVacunacionAnimal public registroVacunacion;
+    IHistoriaClinicaAnimal public registroMedico;
 
-    constructor(string memory baseURI, address colegioDeVeterinariosAddr, address registroMedicosAddr)
-        ERC721("Registro Animal Argentino", "RAA")
-        Ownable(msg.sender)
-    {
+    constructor(
+        string memory baseURI,
+        address colegioDeVeterinariosAddr,
+        address registroMedicosAddr,
+        address registroVacunacionAddr
+    ) ERC721("Registro Animal Argentino", "RAA") CoreAnimal(colegioDeVeterinariosAddr, address(this)) {
         _baseTokenURI = baseURI;
-        colegioDeVeterinarios = IColegioDeVeterinarios(colegioDeVeterinariosAddr);
-        registroMedico = IRegistroMedico(registroMedicosAddr);
+        registroVacunacion = IRegistroDeVacunacionAnimal(registroVacunacionAddr);
+        registroMedico = IHistoriaClinicaAnimal(registroMedicosAddr);
     }
 
-    // @notice Permite actualizar la direccion del Registro Medico
-    function setRegistroMedicos(address addr) external onlyOwner {
-        registroMedico = IRegistroMedico(addr);
-    }
-
-    // @notice Permite actualizar la direccion del Colegio de Veterinarios
-    function setColegioDeVeterinarios(address addr) external onlyOwner {
-        colegioDeVeterinarios = IColegioDeVeterinarios(addr);
+    // @notice Permite actualizar la direccion del Registro de Vacunacion
+    function setRegistroDeVacunacion(address addr) external onlyOwner {
+        registroVacunacion = IRegistroDeVacunacionAnimal(addr);
     }
 
     /// @notice Crea un nuevo animal (NFT) asociado a un chip único.
     /// @dev Solo veterinarios habilitados pueden mintear.
-    function mint(address to, uint256 chipId, Especie especie, uint256 nacimiento, Sexo sexo) external {
+    function mint(address to, uint256 chipId, Especie especie, uint256 nacimiento, Sexo sexo)
+        external
+        soloVeterinarioAutorizado
+    {
         // --- Validaciones baratas ---
         require(chipId != 0, "ChipID invalido");
         require(to != address(0), "Direccion destino invalida");
-
-        // --- Permisos ---
-        require(colegioDeVeterinarios.tieneCredencialValida(msg.sender), "No autorizado: veterinario no habilitado");
 
         // --- Estado ---
         require(_ownerOf(chipId) == address(0), "Chip ya registrado");
@@ -67,9 +64,8 @@ contract RegistroAnimal is ERC721, Ownable {
             require(ownerEnabled[to], "Destinatario no habilitado");
 
             // 3. Validaciones médicas (desde el otro contrato)
-            require(registroMedico.estaVivo(tokenId), "Animal muerto");
-            require(!registroMedico.estaEnfermo(tokenId), "Animal enfermo");
-            require(registroMedico.tieneTodasLasVacunas(tokenId), "Animal no vacunado");
+            require(registroMedico.obtenerEstadoSalud(tokenId) == EstadoSalud.SANO, "El animal debe estar sano");
+            require(registroVacunacion.tieneTodasVacunas(tokenId), "Animal no vacunado");
         }
 
         return super._update(to, tokenId, auth);
