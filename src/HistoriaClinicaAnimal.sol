@@ -1,80 +1,140 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {CoreAnimal} from "./CoreAnimal.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IColegioDeVeterinarios, IRegistroIdentidadAnimal} from "./Interfaces.sol";
 import {EstadoSalud} from "./TiposAnimales.sol";
 
 /**
  * @title HistoriaClinicaAnimal
- * @notice Gestiona historiales médicos
+ * @notice Guarda únicamente referencias IPFS (CID). Sin structs on-chain.
  */
-contract HistoriaClinicaAnimal is CoreAnimal {
-    struct RegistroMedico {
-        uint256 fecha;
-        string descripcion;
-        address veterinario;
-        EstadoSalud estadoSalud;
-    }
+contract HistoriaClinicaAnimal is Ownable {
+    IColegioDeVeterinarios public colegioDeVeterinarios;
+    IRegistroIdentidadAnimal public registroIdentidadAnimal;
 
-    mapping(uint256 => RegistroMedico[]) private historialesMedicos;
+    // CIDs de cada registro médico, totalmente off-chain
+    mapping(uint256 => string[]) private historiales;
 
-    // ----------- Events -----------
+    // Estado de salud actual (opcional, si querés tenerlo rápido en cadena)
+    mapping(uint256 => EstadoSalud) private estadoActual;
+
+    // Dueños que autorizaron a veterinarios para generar registros médicos de todos sus animales
+    mapping(address => mapping(address => bool)) private vetAuthorized;
+
+    // Lista de veterinarios autorizados por cada dueño
+    mapping(address => address[]) private vetList;
 
     event RegistroMedicoAgregado(
-        uint256 indexed chipId, uint256 fecha, address indexed veterinario, EstadoSalud estadoSalud
+        uint256 indexed chipId, string cid, uint256 fecha, address indexed veterinario, EstadoSalud estadoSalud
     );
 
-    // ----------- Errores -----------
+    // El registro de identidad animal debe estar seteado después del deploy
+    constructor(address colegioDeVeterinariosAddr) Ownable(msg.sender) {
+        require(colegioDeVeterinariosAddr != address(0), "Direccion colegio invalida");
+        colegioDeVeterinarios = IColegioDeVeterinarios(colegioDeVeterinariosAddr);
+    }
 
-    error DescripcionVacia();
+    function setRegistroIdentidadAnimal(address nuevaDireccion) external onlyOwner {
+        require(nuevaDireccion != address(0), "Direccion invalida");
+        registroIdentidadAnimal = IRegistroIdentidadAnimal(nuevaDireccion);
+    }
 
-    constructor(address colegioDeVeterinariosAddr, address registroIdentidadAnimalAddr)
-        CoreAnimal(colegioDeVeterinariosAddr, registroIdentidadAnimalAddr)
-    {}
+    function setColegioDeVeterinarios(address nuevaDireccion) external onlyOwner {
+        require(nuevaDireccion != address(0), "Direccion invalida");
+        colegioDeVeterinarios = IColegioDeVeterinarios(nuevaDireccion);
+    }
 
-    function agregarRegistroMedico(uint256 chipId, string calldata descripcion, EstadoSalud estadoSalud)
-        external
-        soloVeterinarioAutorizado
-        animalRegistrado(chipId)
-    {
-        if (bytes(descripcion).length == 0) {
-            revert DescripcionVacia();
-        }
-
-        historialesMedicos[chipId].push(
-            RegistroMedico({
-                fecha: block.timestamp, descripcion: descripcion, veterinario: msg.sender, estadoSalud: estadoSalud
-            })
+    /**
+     * @notice Agrega un registro médico cuyo contenido completo está en IPFS
+     */
+    function agregarRegistroMedico(uint256 chipId, string calldata cid, EstadoSalud nuevoEstado) external {
+        require(bytes(cid).length > 0, "CID no puede ser vacio");
+        require(colegioDeVeterinarios.tieneCredencialValida(msg.sender), "Veterinario no autorizado");
+        require(registroIdentidadAnimal.exists(chipId), "Animal no registrado");
+        require(
+            isVetAuthorized(registroIdentidadAnimal.ownerOf(chipId), msg.sender),
+            "Veterinario no autorizado para este animal"
         );
 
-        emit RegistroMedicoAgregado(chipId, block.timestamp, msg.sender, estadoSalud);
+        historiales[chipId].push(cid);
+        estadoActual[chipId] = nuevoEstado;
+
+        emit RegistroMedicoAgregado(chipId, cid, block.timestamp, msg.sender, nuevoEstado);
     }
 
-    function obtenerHistorialMedico(uint256 chipId)
-        external
-        view
-        animalRegistrado(chipId)
-        returns (RegistroMedico[] memory)
-    {
-        return historialesMedicos[chipId];
+    /**
+     * @return Lista completa de CIDs del historial médico
+     */
+    function obtenerHistorialMedico(uint256 chipId) external view returns (string[] memory) {
+        require(registroIdentidadAnimal.exists(chipId), "Animal no registrado");
+        return historiales[chipId];
     }
 
-    function obtenerUltimoRegistroMedico(uint256 chipId)
-        public
-        view
-        animalRegistrado(chipId)
-        returns (RegistroMedico memory)
-    {
-        RegistroMedico[] storage historial = historialesMedicos[chipId];
-        require(historial.length > 0, "Sin registros medicos");
-        return historial[historial.length - 1];
+    /**
+     * @return CID del último registro médico
+     */
+    function obtenerUltimoRegistroCid(uint256 chipId) external view returns (string memory) {
+        require(registroIdentidadAnimal.exists(chipId), "Animal no registrado");
+
+        string[] storage h = historiales[chipId];
+        require(h.length > 0, "Sin historial");
+
+        return h[h.length - 1];
     }
 
-    function obtenerEstadoSalud(uint256 chipId) external view animalRegistrado(chipId) returns (EstadoSalud) {
-        RegistroMedico[] storage historial = historialesMedicos[chipId];
-        require(historial.length > 0, "Sin registros medicos");
-        return historial[historial.length - 1].estadoSalud;
+    /**
+     * @return Estado de salud actual (on-chain)
+     */
+    function obtenerEstadoSalud(uint256 chipId) external view returns (EstadoSalud) {
+        require(registroIdentidadAnimal.exists(chipId), "Animal no registrado");
+        return estadoActual[chipId];
+    }
+
+    // Autoriza un veterinario automáticamente al momento de mintear el animal
+    function authorizeVetOnMint(address owner, address vetAddress) external {
+        require(msg.sender == address(registroIdentidadAnimal), "Solo RegistroIdentidadAnimal");
+        require(colegioDeVeterinarios.tieneCredencialValida(vetAddress), "Veterinario no autorizado");
+
+        if (!vetAuthorized[owner][vetAddress]) {
+            vetAuthorized[owner][vetAddress] = true;
+            vetList[owner].push(vetAddress);
+        }
+    }
+
+    function authorizeVeterinarian(address vetAddress) external {
+        require(colegioDeVeterinarios.tieneCredencialValida(vetAddress), "Veterinario no autorizado");
+
+        if (!vetAuthorized[msg.sender][vetAddress]) {
+            vetAuthorized[msg.sender][vetAddress] = true;
+            vetList[msg.sender].push(vetAddress);
+        }
+    }
+
+    function revokeVeterinarian(address vetAddress) external {
+        require(vetAuthorized[msg.sender][vetAddress], "No estaba autorizado");
+
+        vetAuthorized[msg.sender][vetAddress] = false;
+
+        // borrar del array
+        address[] storage list = vetList[msg.sender];
+        uint256 len = list.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            if (list[i] == vetAddress) {
+                list[i] = list[len - 1];
+                list.pop();
+                break;
+            }
+        }
+    }
+
+    function isVetAuthorized(address owner, address vetAddress) public view returns (bool) {
+        return vetAuthorized[owner][vetAddress];
+    }
+
+    function obtenerVeterinariosAutorizados(address owner) external view returns (address[] memory) {
+        return vetList[owner];
     }
 }
 

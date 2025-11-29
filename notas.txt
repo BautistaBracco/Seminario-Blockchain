@@ -1,0 +1,5 @@
+* QR o Email para autorizar a veterinario (si uso mail enviar mails)
+* Base de datos offchain email-address
+* Hablar con juli para que guarde datos del veterinario en ipfs y linkearlo con los registros medicos del animal y en la lista de veterinarios autorizados
+* El registro medico que se hace al mint ARREGLAR
+* Poner la salud del animal

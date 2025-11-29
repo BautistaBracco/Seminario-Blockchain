@@ -9,12 +9,11 @@ interface IColegioDeVeterinarios {
 
 interface IHistoriaClinicaAnimal {
     function obtenerEstadoSalud(uint256 chipId) external view returns (EstadoSalud);
-}
-
-interface IRegistroDeVacunacionAnimal {
-    function tieneTodasVacunas(uint256 chipId) external view returns (bool);
+    function isVetAuthorized(address owner, address vetAddress) external view returns (bool);
+    function authorizeVetOnMint(address owner, address vetAddress) external;
 }
 
 interface IRegistroIdentidadAnimal {
-	function exists(uint256 chipId) external view returns (bool);
+    function exists(uint256 chipId) external view returns (bool);
+    function ownerOf(uint256 tokenId) external view returns (address);
 }

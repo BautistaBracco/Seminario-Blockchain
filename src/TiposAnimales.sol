@@ -38,9 +38,6 @@ enum Especie {
 struct Animal {
     Especie especie;
     uint256 nacimiento;
-    // string raza;
-    Sexo sexo;
-    // string propositoProductivo;
 }
 
 enum EstadoSalud {

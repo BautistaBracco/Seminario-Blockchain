@@ -2,44 +2,37 @@
 pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {CoreAnimal} from "./CoreAnimal.sol";
-import {Animal, Especie, Sexo, EstadoSalud} from "./TiposAnimales.sol";
-import {IRegistroDeVacunacionAnimal, IHistoriaClinicaAnimal} from "./Interfaces.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EstadoSalud} from "./TiposAnimales.sol";
+import {IHistoriaClinicaAnimal, IColegioDeVeterinarios} from "./Interfaces.sol";
 
-contract RegistroIdentidadAnimal is ERC721, CoreAnimal {
-    string private _baseTokenURI;
-
-    mapping(uint256 => Animal) public animals;
+contract RegistroIdentidadAnimal is ERC721Enumerable, Ownable {
+    mapping(uint256 => string) private _tokenCIDs;
     mapping(address => bool) public ownerEnabled;
 
-    IRegistroDeVacunacionAnimal public registroVacunacion;
     IHistoriaClinicaAnimal public registroMedico;
+    IColegioDeVeterinarios public colegioDeVeterinarios;
 
-    constructor(
-        string memory baseURI,
-        address colegioDeVeterinariosAddr,
-        address registroMedicosAddr,
-        address registroVacunacionAddr
-    ) ERC721("Registro Animal Argentino", "RAA") CoreAnimal(colegioDeVeterinariosAddr, address(this)) {
-        _baseTokenURI = baseURI;
-        registroVacunacion = IRegistroDeVacunacionAnimal(registroVacunacionAddr);
+    constructor(address colegioDeVeterinariosAddr, address registroMedicosAddr)
+        ERC721("Registro Animal Argentino", "RAA")
+        Ownable(msg.sender)
+    {
+        require(colegioDeVeterinariosAddr != address(0), "Direccion colegio invalida");
+        require(registroMedicosAddr != address(0), "Direccion registro medico invalida");
         registroMedico = IHistoriaClinicaAnimal(registroMedicosAddr);
-    }
-
-    // @notice Permite actualizar la direccion del Registro de Vacunacion
-    function setRegistroDeVacunacion(address addr) external onlyOwner {
-        registroVacunacion = IRegistroDeVacunacionAnimal(addr);
+        colegioDeVeterinarios = IColegioDeVeterinarios(colegioDeVeterinariosAddr);
     }
 
     /// @notice Crea un nuevo animal (NFT) asociado a un chip único.
     /// @dev Solo veterinarios habilitados pueden mintear.
-    function mint(address to, uint256 chipId, Especie especie, uint256 nacimiento, Sexo sexo)
-        external
-        soloVeterinarioAutorizado
-    {
+    function mint(address to, uint256 chipId, string calldata cid) external {
         // --- Validaciones baratas ---
         require(chipId != 0, "ChipID invalido");
         require(to != address(0), "Direccion destino invalida");
+        require(bytes(cid).length > 0, "CID no puede estar vacio");
+
+        require(colegioDeVeterinarios.tieneCredencialValida(msg.sender), "Solo veterinarios habilitados pueden mintear");
 
         // --- Estado ---
         require(_ownerOf(chipId) == address(0), "Chip ya registrado");
@@ -47,9 +40,8 @@ contract RegistroIdentidadAnimal is ERC721, CoreAnimal {
 
         // --- Mint del NFT ---
         _safeMint(to, chipId);
-
-        // --- Registrar metadatos del animal ---
-        animals[chipId] = Animal({especie: especie, nacimiento: nacimiento, sexo: sexo});
+        _tokenCIDs[chipId] = cid;
+        registroMedico.authorizeVetOnMint(to, msg.sender);
     }
 
     /// @notice Hook universal usado para validar transferencias (no mint/burn)
@@ -64,8 +56,9 @@ contract RegistroIdentidadAnimal is ERC721, CoreAnimal {
             require(ownerEnabled[to], "Destinatario no habilitado");
 
             // 3. Validaciones médicas (desde el otro contrato)
-            require(registroMedico.obtenerEstadoSalud(tokenId) == EstadoSalud.SANO, "El animal debe estar sano");
-            require(registroVacunacion.tieneTodasVacunas(tokenId), "Animal no vacunado");
+            require(
+                registroMedico.obtenerEstadoSalud(tokenId) == EstadoSalud.SANO, "Animal no sano, no se puede transferir"
+            );
         }
 
         return super._update(to, tokenId, auth);
@@ -76,14 +69,18 @@ contract RegistroIdentidadAnimal is ERC721, CoreAnimal {
         ownerEnabled[owner] = enabled;
     }
 
-    /// @notice Devuelve el baseURI para tokenURI()
-    function _baseURI() internal view override returns (string memory) {
-        return _baseTokenURI;
+    /// @notice Retorna el URI del token basado en su CID almacenado
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+
+        string memory cid = _tokenCIDs[tokenId];
+        require(bytes(cid).length > 0, "CID no asignado");
+
+        return string.concat("ipfs://", cid);
     }
 
-    /// @notice Permite actualizar el baseURI
-    function setBaseURI(string memory newBaseURI) external onlyOwner {
-        _baseTokenURI = newBaseURI;
+    function exists(uint256 tokenId) public view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
     }
 }
 
