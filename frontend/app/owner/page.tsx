@@ -30,8 +30,7 @@ export default function OwnerDashboard() {
 
         // PASO 2: Obtener los metadatos completos y parseados
         const detailedData = await fetchFullAnimalDetails(chipIds);
-				console.log('Datos detallados obtenidos:', detailedData);
-
+        console.log("Datos detallados obtenidos:", detailedData);
 
         setPets(detailedData);
       } catch (err) {
@@ -156,7 +155,6 @@ function OwnerPets({ pets, isLoading }: { pets: Pet[]; isLoading: boolean }) {
 interface AuthorizedVet {
   address: string;
   name?: string;
-  specialties?: string[];
 }
 
 export function AuthorizedVetsList() {
@@ -166,6 +164,11 @@ export function AuthorizedVetsList() {
   const [isLoading, setIsLoading] = useState(false);
   const [revokeInProgress, setRevokeInProgress] = useState<string | null>(null);
   const [revokingError, setRevokingError] = useState<string | null>(null);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authAddress, setAuthAddress] = useState("");
+  const [authInProgress, setAuthInProgress] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const { authorizeVeterinarian } = useWeb3();
 
   useEffect(() => {
     const loadVeterinarians = async () => {
@@ -209,6 +212,39 @@ export function AuthorizedVetsList() {
     }
   };
 
+  const handleAuthorize = async () => {
+    if (!authAddress.trim()) {
+      setAuthError("Ingresa una dirección válida");
+      return;
+    }
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(authAddress)) {
+      setAuthError("Formato de dirección inválido");
+      return;
+    }
+
+    setAuthInProgress(true);
+    setAuthError(null);
+
+    try {
+      await authorizeVeterinarian(authAddress);
+      setVets([
+        ...vets,
+        {
+          address: authAddress,
+          name: `Veterinario ${authAddress.slice(0, 6)}...${authAddress.slice(-4)}`,
+        },
+      ]);
+      setAuthAddress("");
+      setShowAuthForm(false);
+    } catch (err) {
+      setAuthError("Error autorizando veterinario");
+      console.log("[v0] Auth error:", err);
+    } finally {
+      setAuthInProgress(false);
+    }
+  };
+
   if (!account) {
     return (
       <Card className="p-8 text-center border-dashed">
@@ -229,7 +265,55 @@ export function AuthorizedVetsList() {
           Estos son los veterinarios que pueden ver y actualizar el historial
           médico de tus mascotas
         </p>
+        <Button
+          onClick={() => setShowAuthForm(!showAuthForm)}
+          className="h-fit bg-primary hover:bg-primary/90"
+        >
+          {showAuthForm ? "Cancelar" : "+ Autorizar Veterinario"}
+        </Button>
       </div>
+
+      {showAuthForm && (
+        <Card className="p-4 bg-primary/5 border-primary/30 space-y-3">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-foreground">
+              Dirección del Veterinario
+            </label>
+            <input
+              placeholder="0x..."
+              value={authAddress}
+              onChange={(e) => setAuthAddress(e.target.value)}
+              disabled={authInProgress}
+              className="w-full px-4 py-2 border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          {authError && (
+            <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+              {authError}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleAuthorize}
+              disabled={authInProgress || !authAddress.trim()}
+              className="flex-1 bg-primary hover:bg-primary/90"
+            >
+              {authInProgress ? "Autorizando..." : "Autorizar"}
+            </Button>
+            <Button
+              onClick={() => {
+                setShowAuthForm(false);
+                setAuthAddress("");
+                setAuthError(null);
+              }}
+              variant="outline"
+              disabled={authInProgress}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {revokingError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">

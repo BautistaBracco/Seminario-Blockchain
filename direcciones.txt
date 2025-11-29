@@ -1,0 +1,4 @@
+owner = 0x8490dc877cfd9c4d4bc5834d1a4d60fa525c8035
+vet = 0x7085f13112156cea21de14ef8aea4c0c1ad84530
+deployer = 0x6cae87d29ef5d0aa09344f2c310fc5269a9bf088
+bauti = 0x53cc1a5cae641bd6eee597e5ad8fde5a72d1bbe2

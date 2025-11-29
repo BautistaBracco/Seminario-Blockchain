@@ -81,7 +81,8 @@ export const REGISTRO_IDENTIDAD_ABI = [
     inputs: [
       { name: "to", type: "address" },
       { name: "chipId", type: "uint256" },
-      { name: "cid", type: "string" },
+      { name: "animalCid", type: "string" },
+      { name: "firstReportCid", type: "string" },
     ],
     outputs: [],
     stateMutability: "nonpayable",

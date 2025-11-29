@@ -136,7 +136,12 @@ export function useWeb3() {
   }, [account, getProvider]);
 
   const mintAnimal = useCallback(
-    async (to: string, chipId: number, cid: string) => {
+    async (
+      to: string,
+      chipId: number,
+      animalCID: string,
+      medicalRecordCID: string,
+    ) => {
       try {
         setLoading(true);
         setError(null);
@@ -149,7 +154,7 @@ export function useWeb3() {
           signer,
         );
 
-        const tx = await contract.mint(to, chipId, cid);
+        const tx = await contract.mint(to, chipId, animalCID, medicalRecordCID);
         await tx.wait();
 
         return tx.hash;
@@ -392,7 +397,7 @@ export function useWeb3() {
           return {
             chipId,
             ...metadata, // name, description, image, attributes, etc.
-            estadoDeSalud:Number(estadoDeSalud),
+            estadoDeSalud: Number(estadoDeSalud),
           };
         } catch (err) {
           console.error(`Error al procesar chipId ${chipId}:`, err);

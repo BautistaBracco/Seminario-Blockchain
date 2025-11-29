@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { useWeb3 } from "@/hooks/use-web3";
 import { useIPFS } from "@/hooks/use-ipfs";
 import { Card } from "@/components/ui/card";
-import { EstadoSalud } from "@/lib/abis";
 
 export interface AnimalData {
   nombre: string;
@@ -28,7 +27,6 @@ export function MintAnimalForm({ onSuccess }: MintAnimalFormProps) {
     connectWallet,
     mintAnimal,
     loading: web3Loading,
-    addMedicalRecord,
   } = useWeb3();
   const { uploadJSON, uploadFile, loading: ipfsLoading } = useIPFS();
   const [formData, setFormData] = useState({
@@ -128,12 +126,6 @@ export function MintAnimalForm({ onSuccess }: MintAnimalFormProps) {
 
       // 5. Mintear NFT en la Blockchain
       const chipId = Number.parseInt(formData.chipId);
-      const txHash = await mintAnimal(
-        formData.duenoAddress || account,
-        chipId,
-        metadataCID,
-      );
-
       // 5. Crear el primer registro medico automáticamente
       const medicalRecord = {
         chipId,
@@ -145,9 +137,13 @@ export function MintAnimalForm({ onSuccess }: MintAnimalFormProps) {
         veterinario: account,
       };
 
-      const cid = await uploadJSON(medicalRecord);
-
-      await addMedicalRecord(chipId, cid, EstadoSalud.SANO);
+      const medicalRecordCID = await uploadJSON(medicalRecord);
+      await mintAnimal(
+        formData.duenoAddress || account,
+        chipId,
+        metadataCID,
+        medicalRecordCID,
+      );
 
       // Limpiar formulario...
       setFormData({

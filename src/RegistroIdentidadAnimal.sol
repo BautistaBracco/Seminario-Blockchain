@@ -26,11 +26,12 @@ contract RegistroIdentidadAnimal is ERC721Enumerable, Ownable {
 
     /// @notice Crea un nuevo animal (NFT) asociado a un chip único.
     /// @dev Solo veterinarios habilitados pueden mintear.
-    function mint(address to, uint256 chipId, string calldata cid) external {
+    function mint(address to, uint256 chipId, string calldata animalCid, string calldata firstReportCid) external {
         // --- Validaciones baratas ---
         require(chipId != 0, "ChipID invalido");
         require(to != address(0), "Direccion destino invalida");
-        require(bytes(cid).length > 0, "CID no puede estar vacio");
+        require(bytes(animalCid).length > 0, "CID no puede estar vacio");
+        require(bytes(firstReportCid).length > 0, "CID no puede estar vacio");
 
         require(colegioDeVeterinarios.tieneCredencialValida(msg.sender), "Solo veterinarios habilitados pueden mintear");
 
@@ -40,8 +41,9 @@ contract RegistroIdentidadAnimal is ERC721Enumerable, Ownable {
 
         // --- Mint del NFT ---
         _safeMint(to, chipId);
-        _tokenCIDs[chipId] = cid;
+        _tokenCIDs[chipId] = animalCid;
         registroMedico.authorizeVetOnMint(to, msg.sender);
+        registroMedico.agregarRegistroMedicoAlMint(chipId, firstReportCid, EstadoSalud.SANO);
     }
 
     /// @notice Hook universal usado para validar transferencias (no mint/burn)

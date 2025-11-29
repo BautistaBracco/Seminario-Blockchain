@@ -63,6 +63,17 @@ contract HistoriaClinicaAnimal is Ownable {
         emit RegistroMedicoAgregado(chipId, cid, block.timestamp, msg.sender, nuevoEstado);
     }
 
+    function agregarRegistroMedicoAlMint(uint256 chipId, string calldata cid, EstadoSalud nuevoEstado) external {
+        require(bytes(cid).length > 0, "CID no puede ser vacio");
+        require(msg.sender == address(registroIdentidadAnimal), "Solo RegistroIdentidadAnimal");
+        require(registroIdentidadAnimal.exists(chipId), "Animal no registrado");
+
+        historiales[chipId].push(cid);
+        estadoActual[chipId] = nuevoEstado;
+
+        emit RegistroMedicoAgregado(chipId, cid, block.timestamp, msg.sender, nuevoEstado);
+    }
+
     /**
      * @return Lista completa de CIDs del historial médico
      */

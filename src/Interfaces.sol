@@ -11,6 +11,7 @@ interface IHistoriaClinicaAnimal {
     function obtenerEstadoSalud(uint256 chipId) external view returns (EstadoSalud);
     function isVetAuthorized(address owner, address vetAddress) external view returns (bool);
     function authorizeVetOnMint(address owner, address vetAddress) external;
+    function agregarRegistroMedicoAlMint(uint256 chipId, string calldata cid, EstadoSalud nuevoEstado) external;
 }
 
 interface IRegistroIdentidadAnimal {
